@@ -39,7 +39,7 @@ static float input_buf[] = {
 };
 
 // Wrapper for raw input buffer
-static signal_t signal;
+static signal_t sig;
 
 // Setup function that is called once as soon as the program starts
 void setup() {
@@ -51,8 +51,8 @@ void setup() {
     ei_printf("Static inference test\r\n");
 
     // Assign callback function to fill buffer used for preprocessing/inference
-    signal.total_length = EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE;
-    signal.get_data = &get_signal_data;
+    sig.total_length = EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE;
+    sig.get_data = &get_signal_data;
 }
 
 // Loop function that is called repeatedly after setup()
@@ -62,7 +62,7 @@ void loop() {
     EI_IMPULSE_ERROR res;       // Return code from inference
 
     // Perform DSP pre-processing and inference
-    res = run_classifier(&signal, &result, false);
+    res = run_classifier(&sig, &result, false);
 
     // Print return code and how long it took to perform inference
     ei_printf("run_classifier returned: %d\r\n", res);
