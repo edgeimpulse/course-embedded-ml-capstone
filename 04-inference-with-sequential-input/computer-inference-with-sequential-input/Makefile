@@ -6,12 +6,13 @@ CXX ?= g++
 NAME = app
 BUILD_PATH = ./build
 
-# Location of main.cpp (must use C++ compiler for main)
-CXXSOURCES = source/main.cpp
+# Location of main.cpp (must use C++ compiler for main) and submission
+CXXSOURCES = source/main.cpp source/submission.cpp
 
 # Search path for header files (lib/ directory)
 CFLAGS += -Ilib/ei-cpp-sdk
 CFLAGS += -Ilib/fast-cpp-csv-parser
+CFLAGS += -Ilib/imu-emulator
 
 # C and C++ Compiler flags
 CFLAGS += -Wall						# Include all warnings
@@ -46,7 +47,7 @@ CXXSOURCES += 	$(wildcard lib/ei-cpp-sdk/tflite-model/*.cpp) \
 				$(wildcard lib/ei-cpp-sdk/edge-impulse-sdk/dsp/memory.cpp) \
 				$(wildcard lib/ei-cpp-sdk/edge-impulse-sdk/porting/posix/*.c*) \
 				$(wildcard lib/ei-cpp-sdk/edge-impulse-sdk/porting/mingw32/*.c*)
-CCSOURCES +=
+CXXSOURCES +=	$(wildcard lib/imu-emulator/*.c*)
 
 # Use TensorFlow Lite for Microcontrollers (TFLM)
 CFLAGS += -DTF_LITE_DISABLE_X86_NEON=1
