@@ -17,6 +17,24 @@
 #include "imu-emulator.h"
 #include "submission.h"
 
+// Read accelerometer callback function
+int readAccelerometerCallback(float& x, float& y, float& z) {
+    x = 1;
+    y = 2;
+    z = 3512;
+
+    return 1;
+}
+
+// Read gyroscope callback function
+int readGyroscopeCallback(float& x, float& y, float& z) {
+    x = 10;
+    y = 20;
+    z = 12345;
+
+    return 1;
+}
+
 // Main function to call setup and loop
 int main(int argc, char **argv) {
 
@@ -80,13 +98,9 @@ int main(int argc, char **argv) {
     //     printf("%f\r\n", val);
     // }
 
-    // float x = 0;
-    // float y = 0;
-    // float z = 0;
-    // IMU.readAcceleration(x, y, z);
-    // printf("%f %f %f\r\n", x, y, z);
-    // IMU.readGyroscope(x, y, z);
-    // printf("%f %f %f\r\n", x, y, z);
+    // Register the callback functions to simulate reading from the IMU
+    IMU.registerAccelCallback(readAccelerometerCallback);
+    IMU.registerGyroCallback(readGyroscopeCallback);
 
     // Run user submission
     setup();
