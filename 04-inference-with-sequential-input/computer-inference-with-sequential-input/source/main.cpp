@@ -1,46 +1,53 @@
-    // TODO: 
-    // - make user submission a separate file (submission.c) with an
-    //   associated interface (submission.h). Link to main.cpp.
-    // - Create IMU class with .begin(), .readAcceleration(), and .readGyroscope()
-    //   methods that fetch raw values from vector
-    // - Change test cases to RAW (not standardized)
-    // - Modify while(1) loop; to be conditioned on number of argument test files
-    //   so that it's only called as long as there's a test file in the queue
-    // - Student should ei_printf the inference values?
-    // - Create Python script that calls app with .csv files and compares output
-    //   to known good answers
+// TODO: 
+// - Change test cases to RAW (not standardized)
+// - Modify while(1) loop; to be conditioned on number of argument test files
+//   so that it's only called as long as there's a test file in the queue
+// - Student should ei_printf the inference values?
+// - Create Python script that calls app with .csv files and compares output
+//   to known good answers
 
 #include <stdio.h>
+#include <cstdlib>
 #include <array>
 
 #include "csv.h"
+#include "time-emulator.h"
 #include "imu-emulator.h"
 #include "submission.h"
 
-// Read accelerometer callback function
-int readAccelerometerCallback(float& x, float& y, float& z) {
-    x = 1;
-    y = 2;
-    z = 3512;
+// Declare our helper functions
+int findClosestIdx(unsigned long time_ms);
+int readAccelerometerCallback(float& x, float& y, float& z);
+int readGyroscopeCallback(float& x, float& y, float& z);
 
-    return 1;
-}
+// How the arrays in the raw readings vector are indexed
+enum VectorIDXs {
+    TIME_IDX = 0,
+    ACC_X_IDX,
+    ACC_Y_IDX,
+    ACC_Z_IDX,
+    GYR_X_IDX,
+    GYR_Y_IDX,
+    GYR_Z_IDX
+};
 
-// Read gyroscope callback function
-int readGyroscopeCallback(float& x, float& y, float& z) {
-    x = 10;
-    y = 20;
-    z = 12345;
+// Vector of raw readings to be supplied to the user via callbacks
+static std::vector<std::array<float, 7>> raw_readings;
 
-    return 1;
-}
+// Current timestamp (milliseconds) of user's IMU readings
+static unsigned long first_reading_timestamp = 0;
+static bool is_first_reading = true;
+
+/*******************************************************************************
+ * Main
+ */
 
 // Main function to call setup and loop
 int main(int argc, char **argv) {
 
     float timestamp, accX, accY, accZ, gyrX, gyrY, gyrZ;
     std::array<float, 7> reading;
-    std::vector<std::array<float, 7>> raw_readings;
+    
     float sample_rate = 0.0;
     int reading_idx = 0;
 
@@ -76,13 +83,13 @@ int main(int argc, char **argv) {
             timestamp = sample_rate * raw_readings.size();
 
             // Read values into array
-            reading[0] = timestamp;
-            reading[1] = accX;
-            reading[2] = accY;
-            reading[3] = accZ;
-            reading[4] = gyrX;
-            reading[5] = gyrY;
-            reading[6] = gyrZ;
+            reading[TIME_IDX] = timestamp;
+            reading[ACC_X_IDX] = accX;
+            reading[ACC_Y_IDX] = accY;
+            reading[ACC_Z_IDX] = accZ;
+            reading[GYR_X_IDX] = gyrX;
+            reading[GYR_Y_IDX] = gyrY;
+            reading[GYR_Z_IDX] = gyrZ;
 
             // Push array onto vector
             raw_readings.push_back(reading);
@@ -92,22 +99,95 @@ int main(int argc, char **argv) {
         }
     }
 
+    // Register the callback functions to simulate reading from the IMU
+    IMU.registerAccelCallback(readAccelerometerCallback);
+    IMU.registerGyroCallback(readGyroscopeCallback);
+
     // // TEST
     // for (int i = 0; i < 7; i++) {
     //     float & val = raw_readings[99][i];
     //     printf("%f\r\n", val);
     // }
 
-    // Register the callback functions to simulate reading from the IMU
-    IMU.registerAccelCallback(readAccelerometerCallback);
-    IMU.registerGyroCallback(readGyroscopeCallback);
+
+
+    // // Get monotonic clock time
+    // unsigned long time_stamp = micros();
+
+    // for (int i = 0; i < 10; i++) {
+    //     delay(1000);
+    //     printf("Elapsed ms: %lu\r\n", micros() - time_stamp);
+    // }
 
     // Run user submission
     setup();
-    // while (1) {
-    //     loop();
-    // }
+    while (1) {
+        loop();
+    }
 
     return 0;
 }
 
+/*******************************************************************************
+ * Functions
+ */
+
+// Read accelerometer callback function
+int readAccelerometerCallback(float& x, float& y, float& z) {
+
+    // Update timestamp
+    if (is_first_reading) {
+        is_first_reading = false;
+        first_reading_timestamp = millis();
+    }
+
+    // Calculated elapsed time
+    unsigned long elapsed = millis() - first_reading_timestamp;
+    int closest_time_idx = findClosestIdx(elapsed);
+
+    // Assign values from the row closest to the requested elapsed timestamp
+    x = raw_readings[closest_time_idx][ACC_X_IDX];
+    y = raw_readings[closest_time_idx][ACC_Y_IDX];
+    z = raw_readings[closest_time_idx][ACC_Z_IDX];
+
+    return 1;
+}
+
+// Read gyroscope callback function
+int readGyroscopeCallback(float& x, float& y, float& z) {
+
+    // Update timestamp
+    if (is_first_reading) {
+        is_first_reading = false;
+        first_reading_timestamp = millis();
+    }
+
+    // Calculated elapsed time
+    unsigned long elapsed = millis() - first_reading_timestamp;
+    int closest_time_idx = findClosestIdx(elapsed);
+
+    // Assign values from the row closest to the requested elapsed timestamp
+    x = raw_readings[closest_time_idx][GYR_X_IDX];
+    y = raw_readings[closest_time_idx][GYR_Y_IDX];
+    z = raw_readings[closest_time_idx][GYR_Z_IDX];
+
+    return 1;
+}
+
+// Get closest reading from vector of readings
+int findClosestIdx(unsigned long time_ms) {
+    unsigned long closest_time = raw_readings[0][TIME_IDX];
+    int closest_time_idx = 0;
+    unsigned long num;
+
+    for (long unsigned int i = 0; i < raw_readings.size(); i++) {
+        num = raw_readings[i][TIME_IDX];
+        if (abs(time_ms - num) < 
+            abs(time_ms - closest_time)) {
+                closest_time = num;
+                closest_time_idx = i;
+        }
+    }
+
+    return closest_time_idx;
+}
