@@ -1,7 +1,19 @@
-// TODO: 
-// - Student should ei_printf the inference values?
-// - Create Python script that calls app with .csv files and compares output
-//   to known good answers
+/**
+ * Main application entrypoint for the sequential inferencing assignment
+ *
+ * Reads CSV files from tests/ and constructs a vector of raw readings. The 
+ * student implements setup() and loop() functions in submission.cpp. The IMU
+ * object can read from a virtual accelerometer and gyroscope, which pull
+ * values from the CSV files.
+ * 
+ * In this program, loop() is called once for each CSV file. The student needs
+ * to read a full CSV file (1 second's worth of data), perform inference, and
+ * print the predicted label and value to the console.
+ * 
+ * Author: Shawn Hymel (EdgeImpulse, Inc.)
+ * Date: August 28, 2022
+ * License: Apache-2.0
+ */
 
 #include <stdio.h>
 #include <cstdlib>
@@ -79,7 +91,13 @@ int main(int argc, char **argv) {
                                 "gyrZ");
 
         // Construct vector of raw values from CSV file
-        while (csv_reader.read_row(timestamp, accX, accY, accZ, gyrX, gyrY, gyrZ)) {
+        while (csv_reader.read_row( timestamp, 
+                                    accX, 
+                                    accY, 
+                                    accZ, 
+                                    gyrX, 
+                                    gyrY, 
+                                    gyrZ)) {
 
             // Calculate sample rate (and use that instead of what's in CSV)
             if (reading_idx == 0) {
