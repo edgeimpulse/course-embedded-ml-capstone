@@ -18,11 +18,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-// Generated on: 12.08.2022 22:00:47
+// Generated on: 28.08.2022 19:23:56
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <vector>
 #include "edge-impulse-sdk/tensorflow/lite/c/builtin_op_data.h"
 #include "edge-impulse-sdk/tensorflow/lite/c/common.h"
 #include "edge-impulse-sdk/tensorflow/lite/micro/micro_mutable_op_resolver.h"
@@ -45,6 +44,14 @@ extern void ei_printf(const char *format, ...);
 #elif defined __TASKING__
 #define ALIGN(X) __align(X)
 #endif
+
+#ifndef EI_MAX_SCRATCH_BUFFER_COUNT
+#define EI_MAX_SCRATCH_BUFFER_COUNT 4
+#endif // EI_MAX_SCRATCH_BUFFER_COUNT
+
+#ifndef EI_MAX_OVERFLOW_BUFFER_COUNT
+#define EI_MAX_OVERFLOW_BUFFER_COUNT 10
+#endif // EI_MAX_OVERFLOW_BUFFER_COUNT
 
 using namespace tflite;
 using namespace tflite::ops;
@@ -304,19 +311,26 @@ const TensorInfo_t tensorData[] = {
   { (TfLiteIntArray*)&inputs2, (TfLiteIntArray*)&outputs2, const_cast<void*>(static_cast<const void*>(&opdata2)), OP_FULLY_CONNECTED, },
   { (TfLiteIntArray*)&inputs3, (TfLiteIntArray*)&outputs3, const_cast<void*>(static_cast<const void*>(&opdata3)), OP_SOFTMAX, },
 };
-static std::vector<void*> overflow_buffers;
+static void* overflow_buffers[EI_MAX_OVERFLOW_BUFFER_COUNT];
+static size_t overflow_buffers_ix = 0;
 static void * AllocatePersistentBuffer(struct TfLiteContext* ctx,
                                        size_t bytes) {
   void *ptr;
   if (current_location - bytes < tensor_boundary) {
+    if (overflow_buffers_ix > EI_MAX_OVERFLOW_BUFFER_COUNT - 1) {
+      ei_printf("ERR: Failed to allocate persistent buffer of size %d, does not fit in tensor arena and reached EI_MAX_OVERFLOW_BUFFER_COUNT\n",
+        (int)bytes);
+      return NULL;
+    }
+
     // OK, this will look super weird, but.... we have CMSIS-NN buffers which
     // we cannot calculate beforehand easily.
     ptr = ei_calloc(bytes, 1);
     if (ptr == NULL) {
-      printf("ERR: Failed to allocate persistent buffer of size %d\n", (int)bytes);
+      ei_printf("ERR: Failed to allocate persistent buffer of size %d\n", (int)bytes);
       return NULL;
     }
-    overflow_buffers.push_back(ptr);
+    overflow_buffers[overflow_buffers_ix++] = ptr;
     return ptr;
   }
 
@@ -331,27 +345,37 @@ typedef struct {
   size_t bytes;
   void *ptr;
 } scratch_buffer_t;
-static std::vector<scratch_buffer_t> scratch_buffers;
+static scratch_buffer_t scratch_buffers[EI_MAX_SCRATCH_BUFFER_COUNT];
+static size_t scratch_buffers_ix = 0;
 
 static TfLiteStatus RequestScratchBufferInArena(struct TfLiteContext* ctx, size_t bytes,
                                                 int* buffer_idx) {
+  if (scratch_buffers_ix > EI_MAX_SCRATCH_BUFFER_COUNT - 1) {
+    ei_printf("ERR: Failed to allocate scratch buffer of size %d, reached EI_MAX_SCRATCH_BUFFER_COUNT\n",
+      (int)bytes);
+    return kTfLiteError;
+  }
+
   scratch_buffer_t b;
   b.bytes = bytes;
 
   b.ptr = AllocatePersistentBuffer(ctx, b.bytes);
   if (!b.ptr) {
+    ei_printf("ERR: Failed to allocate scratch buffer of size %d\n",
+      (int)bytes);
     return kTfLiteError;
   }
 
-  scratch_buffers.push_back(b);
+  scratch_buffers[scratch_buffers_ix] = b;
+  *buffer_idx = scratch_buffers_ix;
 
-  *buffer_idx = scratch_buffers.size() - 1;
+  scratch_buffers_ix++;
 
   return kTfLiteOk;
 }
 
 static void* GetScratchBuffer(struct TfLiteContext* ctx, int buffer_idx) {
-  if (buffer_idx > static_cast<int>(scratch_buffers.size()) - 1) {
+  if (buffer_idx > (int)scratch_buffers_ix) {
     return NULL;
   }
   return scratch_buffers[buffer_idx].ptr;
@@ -373,7 +397,7 @@ TfLiteStatus trained_model_init( void*(*alloc_fnc)(size_t,size_t) ) {
 #ifdef EI_CLASSIFIER_ALLOCATION_HEAP
   tensor_arena = (uint8_t*) alloc_fnc(16, kTensorArenaSize);
   if (!tensor_arena) {
-    printf("ERR: failed to allocate tensor arena\n");
+    ei_printf("ERR: failed to allocate tensor arena\n");
     return kTfLiteError;
   }
 #else
@@ -388,7 +412,7 @@ TfLiteStatus trained_model_init( void*(*alloc_fnc)(size_t,size_t) ) {
   ctx.GetEvalTensor = &GetEvalTensor;
   ctx.tensors = tflTensors;
   ctx.tensors_size = 11;
-  for(size_t i = 0; i < 11; ++i) {
+  for (size_t i = 0; i < 11; ++i) {
     tflTensors[i].type = tensorData[i].type;
     tflEvalTensors[i].type = tensorData[i].type;
     tflTensors[i].is_variable = 0;
@@ -409,7 +433,7 @@ TfLiteStatus trained_model_init( void*(*alloc_fnc)(size_t,size_t) ) {
      tflTensors[i].data.data =  start;
      tflEvalTensors[i].data.data =  start;
     }
-    else{
+    else {
        tflTensors[i].data.data = tensorData[i].data;
        tflEvalTensors[i].data.data = tensorData[i].data;
     }
@@ -431,13 +455,13 @@ TfLiteStatus trained_model_init( void*(*alloc_fnc)(size_t,size_t) ) {
     }
   }
   if (tensor_boundary > current_location /* end of arena size */) {
-    printf("ERR: tensor arena is too small, does not fit model - even without scratch buffers\n");
+    ei_printf("ERR: tensor arena is too small, does not fit model - even without scratch buffers\n");
     return kTfLiteError;
   }
   registrations[OP_FULLY_CONNECTED] = Register_FULLY_CONNECTED();
   registrations[OP_SOFTMAX] = Register_SOFTMAX();
 
-  for(size_t i = 0; i < 4; ++i) {
+  for (size_t i = 0; i < 4; ++i) {
     tflNodes[i].inputs = nodeData[i].inputs;
     tflNodes[i].outputs = nodeData[i].outputs;
     tflNodes[i].builtin_data = nodeData[i].builtin_data;
@@ -447,7 +471,7 @@ if (registrations[nodeData[i].used_op_index].init) {
       tflNodes[i].user_data = registrations[nodeData[i].used_op_index].init(&ctx, (const char*)tflNodes[i].builtin_data, 0);
     }
   }
-  for(size_t i = 0; i < 4; ++i) {
+  for (size_t i = 0; i < 4; ++i) {
     if (registrations[nodeData[i].used_op_index].prepare) {
       TfLiteStatus status = registrations[nodeData[i].used_op_index].prepare(&ctx, &tflNodes[i]);
       if (status != kTfLiteOk) {
@@ -473,7 +497,7 @@ TfLiteTensor* trained_model_output(int index) {
 }
 
 TfLiteStatus trained_model_invoke() {
-  for(size_t i = 0; i < 4; ++i) {
+  for (size_t i = 0; i < 4; ++i) {
     TfLiteStatus status = registrations[nodeData[i].used_op_index].invoke(&ctx, &tflNodes[i]);
 
 #if EI_CLASSIFIER_PRINT_STATE
@@ -546,10 +570,14 @@ TfLiteStatus trained_model_reset( void (*free_fnc)(void* ptr) ) {
 #ifdef EI_CLASSIFIER_ALLOCATION_HEAP
   free_fnc(tensor_arena);
 #endif
-  scratch_buffers.clear();
-  for (size_t ix = 0; ix < overflow_buffers.size(); ix++) {
-    free(overflow_buffers[ix]);
+
+  // scratch buffers are allocated within the arena, so just reset the counter so memory can be reused
+  scratch_buffers_ix = 0;
+
+  // overflow buffers are on the heap, so free them first
+  for (size_t ix = 0; ix < overflow_buffers_ix; ix++) {
+    ei_free(overflow_buffers[ix]);
   }
-  overflow_buffers.clear();
+  overflow_buffers_ix = 0;
   return kTfLiteOk;
 }
