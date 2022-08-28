@@ -1,7 +1,5 @@
 // TODO: 
 // - Change test cases to RAW (not standardized)
-// - Modify while(1) loop; to be conditioned on number of argument test files
-//   so that it's only called as long as there's a test file in the queue
 // - Student should ei_printf the inference values?
 // - Create Python script that calls app with .csv files and compares output
 //   to known good answers
@@ -20,6 +18,13 @@ int findClosestIdx(unsigned long time_ms);
 int readAccelerometerCallback(float& x, float& y, float& z);
 int readGyroscopeCallback(float& x, float& y, float& z);
 
+// Vector of raw readings to be supplied to the user via callbacks
+static std::vector<std::array<float, 7>> raw_readings;
+
+// Current timestamp (milliseconds) of user's IMU readings (used in callbacks)
+static unsigned long first_reading_timestamp = 0;
+static bool is_first_reading = true;
+
 // How the arrays in the raw readings vector are indexed
 enum VectorIDXs {
     TIME_IDX = 0,
@@ -30,13 +35,6 @@ enum VectorIDXs {
     GYR_Y_IDX,
     GYR_Z_IDX
 };
-
-// Vector of raw readings to be supplied to the user via callbacks
-static std::vector<std::array<float, 7>> raw_readings;
-
-// Current timestamp (milliseconds) of user's IMU readings
-static unsigned long first_reading_timestamp = 0;
-static bool is_first_reading = true;
 
 /*******************************************************************************
  * Main
@@ -51,14 +49,24 @@ int main(int argc, char **argv) {
     float sample_rate = 0.0;
     int reading_idx = 0;
 
-    // Parse argument as input file path
+    // Check to make sure we've beens supplied at least one input file
     if (argc < 2) {
     printf("ERROR: No input file specified\r\n");
         return 1;
     }
 
+    // Register the callback functions to simulate reading from the IMU
+    IMU.registerAccelCallback(readAccelerometerCallback);
+    IMU.registerGyroCallback(readGyroscopeCallback);
+
+    // Call user supplied setup() function once
+    setup();
+
     // Loop through all files provided as arguments
     for (int file_idx = 1; file_idx < argc; file_idx++) {
+
+        // Clear the raw readings vector
+        raw_readings.clear();
 
         // Read CSV header
         io::CSVReader<7> csv_reader(argv[file_idx]);
@@ -71,7 +79,7 @@ int main(int argc, char **argv) {
                                 "gyrY",
                                 "gyrZ");
 
-        // Construct vector of raw values
+        // Construct vector of raw values from CSV file
         while (csv_reader.read_row(timestamp, accX, accY, accZ, gyrX, gyrY, gyrZ)) {
 
             // Calculate sample rate (and use that instead of what's in CSV)
@@ -97,34 +105,16 @@ int main(int argc, char **argv) {
             // Increment our index
             reading_idx++;
         }
-    }
 
-    // Register the callback functions to simulate reading from the IMU
-    IMU.registerAccelCallback(readAccelerometerCallback);
-    IMU.registerGyroCallback(readGyroscopeCallback);
+        // Reset timestamp readings for callbacks
+        first_reading_timestamp = 0;
+        is_first_reading = true;
 
-    // // TEST
-    // for (int i = 0; i < 7; i++) {
-    //     float & val = raw_readings[99][i];
-    //     printf("%f\r\n", val);
-    // }
-
-
-
-    // // Get monotonic clock time
-    // unsigned long time_stamp = micros();
-
-    // for (int i = 0; i < 10; i++) {
-    //     delay(1000);
-    //     printf("Elapsed ms: %lu\r\n", micros() - time_stamp);
-    // }
-
-    // Run user submission
-    setup();
-    while (1) {
+        // Call user supplied loop() function (once for each CSV file)
         loop();
     }
 
+    // We're done here
     return 0;
 }
 
@@ -134,6 +124,15 @@ int main(int argc, char **argv) {
 
 // Read accelerometer callback function
 int readAccelerometerCallback(float& x, float& y, float& z) {
+
+    // Return 0's if the readings vector is empty
+    if (raw_readings.empty()) {
+        x = 0.0;
+        y = 0.0;
+        z = 0.0;
+
+        return 1;
+    }
 
     // Update timestamp
     if (is_first_reading) {
@@ -156,6 +155,15 @@ int readAccelerometerCallback(float& x, float& y, float& z) {
 // Read gyroscope callback function
 int readGyroscopeCallback(float& x, float& y, float& z) {
 
+    // Return 0's if the readings vector is empty
+    if (raw_readings.empty()) {
+        x = 0.0;
+        y = 0.0;
+        z = 0.0;
+
+        return 1;
+    }
+
     // Update timestamp
     if (is_first_reading) {
         is_first_reading = false;
@@ -176,10 +184,12 @@ int readGyroscopeCallback(float& x, float& y, float& z) {
 
 // Get closest reading from vector of readings
 int findClosestIdx(unsigned long time_ms) {
+
     unsigned long closest_time = raw_readings[0][TIME_IDX];
     int closest_time_idx = 0;
     unsigned long num;
 
+    // Loop through timestamps in vector to find closest
     for (long unsigned int i = 0; i < raw_readings.size(); i++) {
         num = raw_readings[i][TIME_IDX];
         if (abs(time_ms - num) < 
