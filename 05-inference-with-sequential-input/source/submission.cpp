@@ -153,7 +153,7 @@ void loop() {
     }
 
     // Print the answer (must prepend with "ANS: " for the autograder)
-    ei_printf("ANS: %s %f\r\n", 
+    ei_printf("ANS: %s, %f\r\n", 
                 ei_classifier_inferencing_categories[max_idx], 
                 result.classification[max_idx].value);
 
