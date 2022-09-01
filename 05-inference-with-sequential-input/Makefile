@@ -6,6 +6,14 @@ CXX ?= g++
 NAME = app
 BUILD_PATH = ./build
 
+# Figure out which OS we're using
+ifeq ($(OS), Windows_NT)
+	UNAME := Windows
+else
+	UNAME := $(shell uname 2>/dev/null || echo Unknown)
+endif
+$(info OS: $(UNAME))
+
 # Location of main.cpp (must use C++ compiler for main) and submission
 CXXSOURCES = source/main.cpp source/submission.cpp
 
@@ -110,17 +118,17 @@ $(CCOBJECTS) : %.o : %.cc
 # Build target (must use C++ compiler)
 .PHONY: app
 app: $(COBJECTS) $(CXXOBJECTS) $(CCOBJECTS)
-ifeq ($(OS), Windows_NT)
+ifeq ($(UNAME), Windows)
 	if not exist build mkdir build
 else
 	mkdir -p $(BUILD_PATH)
 endif
-	$(CXX) $(COBJECTS) $(CXXOBJECTS) $(CCOBJECTS) -o $(BUILD_PATH)/$(NAME).out $(LDFLAGS)
+	$(CXX) $(COBJECTS) $(CXXOBJECTS) $(CCOBJECTS) -o $(BUILD_PATH)/$(NAME) $(LDFLAGS)
 
 # Remove compiled object files
 .PHONY: clean
 clean:
-ifeq ($(OS), Windows_NT)
+ifeq ($(UNAME), Windows)
 	del /Q $(subst /,\,$(patsubst %.c,%.o,$(CSOURCES))) >nul 2>&1 || exit 0
 	del /Q $(subst /,\,$(patsubst %.cpp,%.o,$(CXXSOURCES))) >nul 2>&1 || exit 0
 	del /Q $(subst /,\,$(patsubst %.cc,%.o,$(CCSOURCES))) >nul 2>&1 || exit 0
