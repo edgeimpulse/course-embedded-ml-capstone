@@ -1,5 +1,38 @@
 /**
- * The code below can be used for inference in Arduino
+ * Sequential inference programming assignment
+ * 
+ * Your task is to modify the code below (look for the "YOUR CODE HERE" tags) to
+ * perform inference in a sequential manner. The idea is that the magic wand 
+ * will sample the IMU for 1 second, filling up a buffer with accelerometer and
+ * gyroscope readings. Once filled, that buffer needs to be passed to the 
+ * run_classifier() function in order to perform inference.
+ * 
+ * Once you receive inference results, find the label with the highest value.
+ * You must print the label with the highest prediction value followed by that
+ * value. For example, if "alpha" is the highest class with a confidence value
+ * of 0.983477, you should print the following to the console:
+ * 
+ * ANS: alpha, 0.983477
+ * 
+ * An example call of ei_printf() is given in the code below. The autograder
+ * will look for the prefix "ANS:" to find your answer. The label and value
+ * must be separated by a comma (,) for the autograder.
+ * 
+ * To build and test your code, navigate to the directory that contains the
+ * Makefile for this project. In a console, enter:
+ * 
+ *  make -j
+ *  ./build/app tests/alpha.8ed919a3a61d.csv
+ * 
+ * This will run the simulator and feed values from the given .csv file to your
+ * IMU object. You should see the answer printed to the screen:
+ * 
+ *  ANS: alpha, 0.996094
+ * 
+ * Try with the other test files!
+ * 
+ * Note: you should be able to copy this program into the Arduino IDE and have
+ * it run on the Arduino Nano 33 BLE Sense.
  */
 
 // Include the name of the Edge Impulse SDK library you imported. This will 
@@ -22,13 +55,10 @@
 #define SAMPLING_PERIOD_MS  1000 / SAMPLING_FREQ_HZ     // Sampling period (ms)
 #define NUM_CHANNELS        EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME // 6 channels
 #define NUM_READINGS        EI_CLASSIFIER_RAW_SAMPLE_COUNT      // 100 readings
-#define NUM_CLASSES         EI_CLASSIFIER_LABEL_COUNT   // 4 classes
+#define NUM_CLASSES         EI_CLASSIFIER_LABEL_COUNT           // 4 classes
 
 // Function declarations
 static int get_signal_data(size_t offset, size_t length, float *out_ptr);
-
-// Settings
-static const int debug_nn = false;
 
 // Means and standard deviations from our dataset curation
 static const float means[] = {0.4869, -0.6364, 8.329, -0.1513, 4.631, -9.8836};
@@ -50,9 +80,6 @@ void setup() {
     digitalWrite(LED_R_PIN, HIGH);
     Serial.begin(115200);
 #endif
-
-    // Print something to the terminal
-    ei_printf("Sequential inference test\r\n");
 
     // Start IMU
     if (!IMU.begin()) {
@@ -78,64 +105,40 @@ void loop() {
     digitalWrite(LED_R_PIN, LOW);
 #endif
 
-    // Sample the IMU for 1 second
-    for (int i = 0; i < NUM_READINGS; i++) {
+    // Sample the IMU for 1 second. You should end up with 100 readings for each 
+    // of the 6 channels after the 1 second is over.
+    //  - Make sure you wait between each reading long enough for a 100 Hz 
+    //    sampling rate.
+    //  - For each reading, perform standardization using the mean and std_dev
+    //    associated with each channel
+    //  - Store your standardized readings in input_buf[]
+    //  - Recall that the order of input_buf[] should be 
+    //    [acc_x0, acc_y0, acc_z0, gyr_x0, gyr_y0, gyr_z0, acc_x1, ...]
+    // --- YOUR CODE HERE ---
 
-        // Take timestamp so we can hit our target frequency
-        timestamp = millis();
-
-        // Get raw readings from the accelerometer and gyroscope
-        IMU.readAcceleration(acc_x, acc_y, acc_z);
-        IMU.readGyroscope(gyr_x, gyr_y, gyr_z);
-
-        // Convert accelerometer units from G to m/s^s
-        acc_x *= CONVERT_G_TO_MS2;
-        acc_y *= CONVERT_G_TO_MS2;
-        acc_z *= CONVERT_G_TO_MS2;
-
-        // Perform standardization on each reading
-        // Use the values from means[] and std_devs[]
-        acc_x = (acc_x - means[0]) / std_devs[0];
-        acc_y = (acc_y - means[1]) / std_devs[1];
-        acc_z = (acc_z - means[2]) / std_devs[2];
-        gyr_x = (gyr_x - means[3]) / std_devs[3];
-        gyr_y = (gyr_y - means[4]) / std_devs[4];
-        gyr_z = (gyr_z - means[5]) / std_devs[5];
-
-        // Fill input_buf with the standardized readings. Recall tha the order
-        // is [acc_x0, acc_y0, acc_z0, gyr_x0, gyr_y0, gyr_z0, acc_x1, ...]
-        input_buf[(NUM_CHANNELS * i) + 0] = acc_x;
-        input_buf[(NUM_CHANNELS * i) + 1] = acc_y;
-        input_buf[(NUM_CHANNELS * i) + 2] = acc_z;
-        input_buf[(NUM_CHANNELS * i) + 3] = gyr_x;
-        input_buf[(NUM_CHANNELS * i) + 4] = gyr_y;
-        input_buf[(NUM_CHANNELS * i) + 5] = gyr_z;
-
-        // Wait just long enough for our sampling period
-        while (millis() - timestamp < SAMPLING_PERIOD_MS);
-    }
+    // --- END CODE ---
 
     // Turn off LED to show we're done recording
 #ifdef ARDUINO
     digitalWrite(LED_R_PIN, HIGH);
 #endif
 
-    // Perform DSP pre-processing and inference
-    res = run_classifier(&sig, &result, false);
+    // Call run_classifier() to perform preprocessing and inference
+    // --- YOUR CODE HERE ---
+    
+    // --- END CODE ---
 
     // Find the label with the highest classification value
-    // Categories are stored in the ei_classifier_inferencing_categories[] array
-    // Values are stored in result.classification[i].value for each label i
-    // Store highest value index in max_idx and highest value in max_val
+    // - Category labels are stored in the 
+    //   ei_classifier_inferencing_categories[] array
+    // - Prediction values are stored in result.classification[i].value for each
+    //   label i
+    // - Store the highest prediction value in max_val
+    // - Store the index of the label with the highest value in max_idx
     float max_val = 0.0;
     int max_idx = -1;
     // --- YOUR CODE HERE ---
-    for (int i = 0; i < NUM_CLASSES; i++) {
-        if (result.classification[i].value > max_val) {
-            max_val = result.classification[i].value;
-            max_idx = i;
-        }
-    }
+    
     // --- END CODE ---
 
     // Print return code and how long it took to perform inference
@@ -152,7 +155,7 @@ void loop() {
         ei_printf("%.5f\r\n", result.classification[i].value);
     }
 
-    // Print the answer (must prepend with "ANS: " for the autograder)
+    // Print the answer (line must begin with "ANS: " for the autograder)
     ei_printf("ANS: %s, %f\r\n", 
                 ei_classifier_inferencing_categories[max_idx], 
                 result.classification[max_idx].value);
