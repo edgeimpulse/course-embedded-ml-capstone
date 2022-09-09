@@ -65,7 +65,7 @@ static const float means[] = {0.4869, -0.6364, 8.329, -0.1513, 4.631, -9.8836};
 static const float std_devs[] = {3.062, 7.2209, 6.9951, 61.3324, 104.1638, 108.3149};
 
 // Store raw readings in a buffer that has 6 * 100 = 600 elements
-static float input_buf[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE];
+static float input_buf[NUM_CHANNELS * NUM_READINGS];
 
 // Wrapper for raw input buffer
 static signal_t sig;
@@ -107,13 +107,17 @@ void loop() {
 
     // Sample the IMU for 1 second. You should end up with 100 readings for each 
     // of the 6 channels after the 1 second is over.
-    //  - Make sure you wait between each reading long enough for a 100 Hz 
-    //    sampling rate.
+    //  - Convert accelerometer raw readings from G-force to m/s^2
     //  - For each reading, perform standardization using the mean and std_dev
     //    associated with each channel
     //  - Store your standardized readings in input_buf[]
     //  - Recall that the order of input_buf[] should be 
     //    [acc_x0, acc_y0, acc_z0, gyr_x0, gyr_y0, gyr_z0, acc_x1, ...]
+    //  - Make sure you wait between each reading long enough for a 100 Hz 
+    //    sampling rate.
+    //  - Hint: this looks similar to the loop you wrote for the data collection
+    //    exercise (the differences are that you don't need to collect the 
+    //    timestamps and you need to perform standardization on the readings)
     // --- YOUR CODE HERE ---
 
     // --- END CODE ---
