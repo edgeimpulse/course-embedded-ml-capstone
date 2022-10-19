@@ -14,6 +14,7 @@ CFLAGS += -Ilib/ei-cpp-sdk
 CFLAGS += -Ilib/fast-cpp-csv-parser
 CFLAGS += -Ilib/imu-emulator
 CFLAGS += -Ilib/time-emulator
+CFLAGS += -Ilib/nrf52-timer-emulator
 
 # C and C++ Compiler flags
 CFLAGS += -Wall						# Include all warnings
@@ -49,7 +50,8 @@ CXXSOURCES += 	$(wildcard lib/ei-cpp-sdk/tflite-model/*.cpp) \
 				$(wildcard lib/ei-cpp-sdk/edge-impulse-sdk/porting/posix/*.c*) \
 				$(wildcard lib/ei-cpp-sdk/edge-impulse-sdk/porting/mingw32/*.c*)
 CXXSOURCES +=	$(wildcard lib/imu-emulator/*.c*) \
-				$(wildcard lib/time-emulator/*.c*)
+				$(wildcard lib/time-emulator/*.c*) \
+				$(wildcard lib/nrf52-timer-emulator/*.c*) 
 
 # Use TensorFlow Lite for Microcontrollers (TFLM)
 CFLAGS += -DTF_LITE_DISABLE_X86_NEON=1

@@ -1,9 +1,8 @@
 /**
- * Emulate the delay(), delayMicroseconds(), millis(), and micros() functions 
- * from Arduino
+ * Emulate the NRF52_MBED_Timer library for Arduino.
  * 
  * Author: Shawn Hymel (Edge Impulse)
- * Date: August 26, 2022
+ * Date: September 29, 2022
  * License: Apache-2.0
  * 
  * Copyright 2022 EdgeImpulse, Inc.
@@ -21,20 +20,27 @@
  * limitations under the License.
  */
 
-#ifndef TIME_EMULATOR_H
-#define TIME_EMULATOR_H
+#ifndef NRF52_TIMER_EMULATOR_H
+#define NRF52_TIMER_EMULATOR_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define NRF_TIMER_3     3
+#define NRF_TIMER_4     4
 
-void delay(unsigned long ms);
-void delayMicroseconds(unsigned long us);
-unsigned long micros(void);
-unsigned long millis(void);
+// ISR callback function pointer types
+typedef void (*timer_func_ptr)();
 
-#ifdef __cplusplus
-}
-#endif
+class NRF52_MBED_Timer {
+    public:
+        NRF52_MBED_Timer(int timer);
 
-#endif // TIME_EMULATOR_H
+        // Arduino interface
+        bool attachInterruptInterval(const unsigned long interval, 
+                                        timer_func_ptr cb);
+    private:
+        timer_func_ptr timer_cb_ptr_ = 0;
+        unsigned long interval_ = 0;
+        void start_timer_thread();
+
+};
+
+#endif // NRF52_IMER_EMULATOR_H

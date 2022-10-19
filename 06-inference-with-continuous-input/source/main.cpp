@@ -38,6 +38,8 @@ static std::vector<std::array<float, 7>> raw_readings;
 static unsigned long first_reading_timestamp = 0;
 static bool is_first_reading = true;
 
+
+
 /*******************************************************************************
  * Main
  */
@@ -51,7 +53,7 @@ int main(int argc, char **argv) {
     float sample_rate = 0.0;
     int reading_idx = 0;
 
-    // Parse argument as input file path
+    // Check to make sure we've beens supplied at least one input file
     if (argc < 2) {
     printf("ERROR: No input file specified\r\n");
         return 1;
@@ -103,9 +105,9 @@ int main(int argc, char **argv) {
     IMU.registerAccelCallback(readAccelerometerCallback);
     IMU.registerGyroCallback(readGyroscopeCallback);
 
-    // // TEST
+    // TEST
     // for (int i = 0; i < 7; i++) {
-    //     float & val = raw_readings[99][i];
+    //     float & val = raw_readings[100][i];
     //     printf("%f\r\n", val);
     // }
 
@@ -135,6 +137,15 @@ int main(int argc, char **argv) {
 // Read accelerometer callback function
 int readAccelerometerCallback(float& x, float& y, float& z) {
 
+    // Return 0's if the readings vector is empty
+    if (raw_readings.empty()) {
+        x = 0.0;
+        y = 0.0;
+        z = 0.0;
+
+        return 1;
+    }
+
     // Update timestamp
     if (is_first_reading) {
         is_first_reading = false;
@@ -156,6 +167,15 @@ int readAccelerometerCallback(float& x, float& y, float& z) {
 // Read gyroscope callback function
 int readGyroscopeCallback(float& x, float& y, float& z) {
 
+    // Return 0's if the readings vector is empty
+    if (raw_readings.empty()) {
+        x = 0.0;
+        y = 0.0;
+        z = 0.0;
+
+        return 1;
+    }
+
     // Update timestamp
     if (is_first_reading) {
         is_first_reading = false;
@@ -176,14 +196,16 @@ int readGyroscopeCallback(float& x, float& y, float& z) {
 
 // Get closest reading from vector of readings
 int findClosestIdx(unsigned long time_ms) {
+
     unsigned long closest_time = raw_readings[0][TIME_IDX];
     int closest_time_idx = 0;
     unsigned long num;
 
+    // Loop through timestamps in vector to find closest
     for (long unsigned int i = 0; i < raw_readings.size(); i++) {
         num = raw_readings[i][TIME_IDX];
-        if (abs(time_ms - num) < 
-            abs(time_ms - closest_time)) {
+        if (abs((long long)time_ms - (long long)num) < 
+            abs((long long)time_ms - (long long)closest_time)) {
                 closest_time = num;
                 closest_time_idx = i;
         }
