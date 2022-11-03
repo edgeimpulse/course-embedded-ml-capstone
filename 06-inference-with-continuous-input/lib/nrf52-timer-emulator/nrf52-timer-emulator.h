@@ -20,11 +20,15 @@
  * limitations under the License.
  */
 
+#include <thread>
+
 #ifndef NRF52_TIMER_EMULATOR_H
 #define NRF52_TIMER_EMULATOR_H
 
 #define NRF_TIMER_3     3
 #define NRF_TIMER_4     4
+
+static const int thread_priority = 99;
 
 // ISR callback function pointer types
 typedef void (*timer_func_ptr)();
@@ -32,6 +36,9 @@ typedef void (*timer_func_ptr)();
 class NRF52_MBED_Timer {
     public:
         NRF52_MBED_Timer(int timer);
+        ~NRF52_MBED_Timer();
+        void start();
+        void stop();
 
         // Arduino interface
         bool attachInterruptInterval(const unsigned long interval, 
@@ -39,8 +46,11 @@ class NRF52_MBED_Timer {
     private:
         timer_func_ptr timer_cb_ptr_ = 0;
         unsigned long interval_ = 0;
-        void start_timer_thread();
+        bool running_ = false;
+        std::thread *timer_thread_ = nullptr;
+        int thread_priority_ = thread_priority;
 
+        void run();
 };
 
 #endif // NRF52_IMER_EMULATOR_H

@@ -1,5 +1,10 @@
+/**
+ * Run with sudo or as root in order to use the realtime scheduler policy.
+ */
+
 // TODO: 
-// - Change test cases to RAW (not standardized)
+// - Fix poor thread scheduling (missing deadlines). Change priority/nice?
+//   Update wait time after executing thread? Priority not setting properly?
 // - Modify while(1) loop; to be conditioned on number of argument test files
 //   so that it's only called as long as there's a test file in the queue
 // - Student should ei_printf the inference values?
@@ -9,11 +14,16 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <array>
+#include <string>
+#include <iostream>
 
 #include "csv.h"
 #include "time-emulator.h"
 #include "imu-emulator.h"
 #include "submission.h"
+
+// End program if we reach the end of our readings
+#define STOP_IF_END_OF_READINGS     1
 
 // Declare our helper functions
 int findClosestIdx(unsigned long time_ms);
@@ -38,7 +48,8 @@ static std::vector<std::array<float, 7>> raw_readings;
 static unsigned long first_reading_timestamp = 0;
 static bool is_first_reading = true;
 
-
+// Flag to notify that we've hit the end of the readings
+static bool main_running = true;
 
 /*******************************************************************************
  * Main
@@ -105,28 +116,23 @@ int main(int argc, char **argv) {
     IMU.registerAccelCallback(readAccelerometerCallback);
     IMU.registerGyroCallback(readGyroscopeCallback);
 
-    // TEST
-    // for (int i = 0; i < 7; i++) {
-    //     float & val = raw_readings[100][i];
-    //     printf("%f\r\n", val);
-    // }
-
-
-
-    // // Get monotonic clock time
-    // unsigned long time_stamp = micros();
-
-    // for (int i = 0; i < 10; i++) {
-    //     delay(1000);
-    //     printf("Elapsed ms: %lu\r\n", micros() - time_stamp);
-    // }
-
     // Run user submission
     setup();
-    while (1) {
+    while (main_running) {
+
+        // Stop main thread if we've reached the end of the readings
+// #if STOP_IF_END_OF_READINGS
+//         if (flag_end_of_readings) {
+//             main_running = false;
+//             std::cout << "Stopping main thread" << std::endl;
+//         }
+// #endif
+
+        // Call user's loop function in submission
         loop();
     }
 
+    // Note that NRF52_Timer should stop/join thread on destruction
     return 0;
 }
 
@@ -210,6 +216,13 @@ int findClosestIdx(unsigned long time_ms) {
                 closest_time_idx = i;
         }
     }
+
+    // Notify the main thread that we've run out of readings
+#if STOP_IF_END_OF_READINGS
+    if ((long unsigned int)closest_time_idx >= raw_readings.size() - 1) {
+        main_running = false;
+    }
+#endif
 
     return closest_time_idx;
 }

@@ -65,7 +65,7 @@ static const float means[] = {0.4869, -0.6364, 8.329, -0.1513, 4.631, -9.8836};
 static const float std_devs[] = {3.062, 7.2209, 6.9951, 61.3324, 104.1638, 108.3149};
 
 // Store raw readings in a buffer that has 6 * 100 = 600 elements
-static float input_buf[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE];
+static float input_buf[NUM_CHANNELS * NUM_READINGS];
 
 // Wrapper for raw input buffer
 static signal_t sig;
