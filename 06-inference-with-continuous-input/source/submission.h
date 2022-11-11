@@ -7,5 +7,6 @@
 
 void setup();
 void loop();
+void stop_threads();
 
 #endif // SUBMISSION_H

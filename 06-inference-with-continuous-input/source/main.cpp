@@ -1,15 +1,21 @@
 /**
- * Run with sudo or as root in order to use the realtime scheduler policy.
+ * Main application entrypoint for the continuous inferencing assignment
+ *
+ * Reads CSV files from tests/ and constructs a vector of raw readings. The 
+ * student implements setup() and loop() functions in submission.cpp. The IMU
+ * object can read from a virtual accelerometer and gyroscope, which pull
+ * values from the CSV files.
+ * 
+ * In this program, loop() is called and the threads run until all of the rows
+ * in the concatenated CSV files have been read. The student needs to implement
+ * two threads: one that samples the IMU every 10 ms and another that performs
+ * inference in the background every time one of the raw_buf double buffers
+ * fills up.
+ * 
+ * Author: Shawn Hymel (EdgeImpulse, Inc.)
+ * Date: November 11, 2022
+ * License: Apache-2.0
  */
-
-// TODO: 
-// - Fix poor thread scheduling (missing deadlines). Change priority/nice?
-//   Update wait time after executing thread? Priority not setting properly?
-// - Modify while(1) loop; to be conditioned on number of argument test files
-//   so that it's only called as long as there's a test file in the queue
-// - Student should ei_printf the inference values?
-// - Create Python script that calls app with .csv files and compares output
-//   to known good answers
 
 #include <stdio.h>
 #include <cstdlib>
@@ -49,92 +55,7 @@ static unsigned long first_reading_timestamp = 0;
 static bool is_first_reading = true;
 
 // Flag to notify that we've hit the end of the readings
-static bool main_running = true;
-
-/*******************************************************************************
- * Main
- */
-
-// Main function to call setup and loop
-int main(int argc, char **argv) {
-
-    float timestamp, accX, accY, accZ, gyrX, gyrY, gyrZ;
-    std::array<float, 7> reading;
-    
-    float sample_rate = 0.0;
-    int reading_idx = 0;
-
-    // Check to make sure we've beens supplied at least one input file
-    if (argc < 2) {
-    printf("ERROR: No input file specified\r\n");
-        return 1;
-    }
-
-    // Loop through all files provided as arguments
-    for (int file_idx = 1; file_idx < argc; file_idx++) {
-
-        // Read CSV header
-        io::CSVReader<7> csv_reader(argv[file_idx]);
-        csv_reader.read_header( io::ignore_extra_column, 
-                                "timestamp", 
-                                "accX", 
-                                "accY",
-                                "accZ",
-                                "gyrX",
-                                "gyrY",
-                                "gyrZ");
-
-        // Construct vector of raw values
-        while (csv_reader.read_row(timestamp, accX, accY, accZ, gyrX, gyrY, gyrZ)) {
-
-            // Calculate sample rate (and use that instead of what's in CSV)
-            if (reading_idx == 0) {
-                sample_rate = timestamp;
-            } else if (reading_idx == 1) {
-                sample_rate = timestamp - sample_rate;
-            }
-            timestamp = sample_rate * raw_readings.size();
-
-            // Read values into array
-            reading[TIME_IDX] = timestamp;
-            reading[ACC_X_IDX] = accX;
-            reading[ACC_Y_IDX] = accY;
-            reading[ACC_Z_IDX] = accZ;
-            reading[GYR_X_IDX] = gyrX;
-            reading[GYR_Y_IDX] = gyrY;
-            reading[GYR_Z_IDX] = gyrZ;
-
-            // Push array onto vector
-            raw_readings.push_back(reading);
-
-            // Increment our index
-            reading_idx++;
-        }
-    }
-
-    // Register the callback functions to simulate reading from the IMU
-    IMU.registerAccelCallback(readAccelerometerCallback);
-    IMU.registerGyroCallback(readGyroscopeCallback);
-
-    // Run user submission
-    setup();
-    while (main_running) {
-
-        // Stop main thread if we've reached the end of the readings
-// #if STOP_IF_END_OF_READINGS
-//         if (flag_end_of_readings) {
-//             main_running = false;
-//             std::cout << "Stopping main thread" << std::endl;
-//         }
-// #endif
-
-        // Call user's loop function in submission
-        loop();
-    }
-
-    // Note that NRF52_Timer should stop/join thread on destruction
-    return 0;
-}
+static volatile bool main_running = true;
 
 /*******************************************************************************
  * Functions
@@ -225,4 +146,84 @@ int findClosestIdx(unsigned long time_ms) {
 #endif
 
     return closest_time_idx;
+}
+
+/*******************************************************************************
+ * Main
+ */
+
+// Main function to call setup and loop
+int main(int argc, char **argv) {
+
+    float timestamp, accX, accY, accZ, gyrX, gyrY, gyrZ;
+    std::array<float, 7> reading;
+    
+    float sample_rate = 0.0;
+    int reading_idx = 0;
+
+    // Check to make sure we've beens supplied at least one input file
+    if (argc < 2) {
+    printf("ERROR: No input file specified\r\n");
+        return 1;
+    }
+
+    // Loop through all files provided as arguments
+    for (int file_idx = 1; file_idx < argc; file_idx++) {
+
+        // Read CSV header
+        io::CSVReader<7> csv_reader(argv[file_idx]);
+        csv_reader.read_header( io::ignore_extra_column, 
+                                "timestamp", 
+                                "accX", 
+                                "accY",
+                                "accZ",
+                                "gyrX",
+                                "gyrY",
+                                "gyrZ");
+
+        // Construct vector of raw values
+        while (csv_reader.read_row(timestamp, accX, accY, accZ, gyrX, gyrY, gyrZ)) {
+
+            // Calculate sample rate (and use that instead of what's in CSV)
+            if (reading_idx == 0) {
+                sample_rate = timestamp;
+            } else if (reading_idx == 1) {
+                sample_rate = timestamp - sample_rate;
+            }
+            timestamp = sample_rate * raw_readings.size();
+
+            // Read values into array
+            reading[TIME_IDX] = timestamp;
+            reading[ACC_X_IDX] = accX;
+            reading[ACC_Y_IDX] = accY;
+            reading[ACC_Z_IDX] = accZ;
+            reading[GYR_X_IDX] = gyrX;
+            reading[GYR_Y_IDX] = gyrY;
+            reading[GYR_Z_IDX] = gyrZ;
+
+            // Push array onto vector
+            raw_readings.push_back(reading);
+
+            // Increment our index
+            reading_idx++;
+        }
+    }
+
+    // Register the callback functions to simulate reading from the IMU
+    IMU.registerAccelCallback(readAccelerometerCallback);
+    IMU.registerGyroCallback(readGyroscopeCallback);
+
+    // Run user submission
+    setup();
+    while (main_running) {
+
+        // Call user's loop function in submission
+        loop();
+    }
+
+    // Wait for the threads to end in the user submission code
+    stop_threads();
+
+    // Note that NRF52_Timer should stop/join thread on destruction
+    return 0;
 }
