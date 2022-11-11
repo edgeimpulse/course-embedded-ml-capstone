@@ -1,12 +1,19 @@
 /**
  * The code below can be used for inference in Arduino
+ * 
+ * TODO: IMU in ISR hangs processor!
  */
+
+// These must be placed before #include "NRF52_MBED_TimerInterrupt.h"
+#define TIMER_INTERRUPT_DEBUG         0
+#define _TIMERINTERRUPT_LOGLEVEL_     3
 
 // Include the name of the Edge Impulse SDK library you imported. This will 
 // switch between Arduino and computer libraries as needed.
 #ifdef ARDUINO
     #include <Arduino_LSM9DS1.h>
     #include <magic-wand-capstone_inferencing.h>
+    #include <NRF52_MBED_TimerInterrupt.h>
 #else
     #include "time-emulator.h"
     #include "imu-emulator.h"
@@ -114,6 +121,8 @@ void setup() {
     // Configure interrupt (starts the timer to trigger ISR every 10 ms)
     if (!interrupt_timer.attachInterruptInterval(SAMPLING_PERIOD_US, timer_ISR)) {
         ei_printf("ERROR: Could not set timer interrupt\r\n");
+    } else {
+        ei_printf("ERROR: Could not set up timer\r\n");
     }
 
     // Assign callback function to fill buffer used for preprocessing/inference
@@ -197,6 +206,21 @@ void loop() {
         }
     }
 
+    // Print return code and how long it took to perform inference
+    ei_printf("run_classifier returned: %d\r\n", res);
+    ei_printf("Timing: DSP %d ms, inference %d ms, anomaly %d ms\r\n", 
+            result.timing.dsp, 
+            result.timing.classification, 
+            result.timing.anomaly);
+
+    // Print inference/prediction results
+    ei_printf("Predictions:\r\n");
+    for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+        ei_printf("  %s: ", ei_classifier_inferencing_categories[i]);
+        ei_printf("%.5f\r\n", result.classification[i].value);
+    }
+
+
     // Print the answer (line must begin with "ANS: " for the autograder)
     ei_printf("ANS: %s, %f\r\n", 
                 ei_classifier_inferencing_categories[max_idx], 
@@ -222,7 +246,7 @@ static int get_signal_data(size_t offset, size_t length, float *out_ptr) {
     for (size_t i = 0; i < length; i++) {
 
         // Copy element
-        out_ptr[i] = input_buf[idx];        
+        out_ptr[i] = input_buf[idx];     
 
         // Increment and wrap the ring buffer pointer
         idx++;
@@ -230,6 +254,19 @@ static int get_signal_data(size_t offset, size_t length, float *out_ptr) {
             idx = offset;
         }
     }
+
+
+    // // ***TEST*** Print buffer in inference order
+    // int timestamp = 0; // ***TEST***
+    // int counter = 0; // ***TEST***
+    // for (int i = 0; i < length / 6; i++) {
+    //     ei_printf("%i, ", timestamp);
+    //     timestamp += 10;
+    //     for (int j = 0; j < 5; j++) {
+    //         ei_printf("%.2f, ", out_ptr[(i * 6) + j]);
+    //     }
+    //     ei_printf("%.2f\r\n", out_ptr[(i * 6) + 5]);
+    // }
 
     return EIDSP_OK;
 }
